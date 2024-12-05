@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import toast from 'react-hot-toast';
 
 interface WalletContextType {
@@ -31,6 +31,7 @@ const KT_TOKEN_ADDRESS = 'EStPXF2Mh3NVEezeysYfhrWXnuqwmbmjqLSP9vR5pump';
 const WHITEPAPER_DATE = new Date('2024-01-01');
 const MIN_KT_REQUIRED = 100000;
 const RETRY_DELAY = 2000; // 2 seconds
+const MAX_CONNECT_RETRIES = 3;
 
 export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
@@ -40,6 +41,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [holdingPeriodDays, setHoldingPeriodDays] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [connectRetries, setConnectRetries] = useState(0);
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -83,7 +85,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       });
 
       const data = await response.json();
-      console.log('error', data.error);
       if (data.error?.includes("couldn't complete the request")) {
         const retryMessage = `Network is experiencing high traffic. Retry attempt ${retryCount + 1}. Please wait...`;
         console.log(retryMessage);
@@ -145,9 +146,29 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setError(errorMsg);
       toast.error(errorMsg);
       await sleep(RETRY_DELAY);
-      return checkKTBalance(); // Retry the entire check
+      return checkKTBalance();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const attemptWalletConnection = async (solana: any): Promise<any> => {
+    try {
+      const response = await solana.connect({ onlyIfTrusted: false });
+      setConnectRetries(0); // Reset retries on successful connection
+      return response;
+    } catch (error: any) {
+      if (error.message?.includes('User rejected')) {
+        setConnectRetries(prev => prev + 1);
+        if (connectRetries < MAX_CONNECT_RETRIES) {
+          toast.error('Connection request declined. Please approve the connection in your Phantom wallet.');
+          await sleep(RETRY_DELAY);
+          return attemptWalletConnection(solana);
+        } else {
+          throw new Error('Connection attempts exceeded. Please try again later.');
+        }
+      }
+      throw error;
     }
   };
 
@@ -156,23 +177,24 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     try {
       setError(null);
+      setConnectRetries(0);
       const { solana } = window as any;
       
       if (!solana) {
-        const msg = 'Phantom wallet not found. Please install Phantom wallet.';
+        const msg = 'Phantom wallet not detected. Please install Phantom wallet from phantom.app';
         setError(msg);
         toast.error(msg);
         return;
       }
 
       if (!solana.isPhantom) {
-        const msg = 'Please install Phantom wallet to continue.';
+        const msg = 'Please install Phantom wallet from phantom.app to continue';
         setError(msg);
         toast.error(msg);
         return;
       }
 
-      const response = await solana.connect({ onlyIfTrusted: false });
+      const response = await attemptWalletConnection(solana);
       const address = response.publicKey.toString();
       console.log('Wallet connected:', address);
       
@@ -185,6 +207,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const msg = 'Failed to connect wallet: ' + errorMsg;
       setError(msg);
       toast.error(msg);
+      setConnectRetries(0); // Reset retries on final failure
     }
   };
 
@@ -200,6 +223,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setWalletAddress(null);
         setKTBalance(null);
         setDaysAfterWhitepaper(null);
+        setConnectRetries(0);
         console.log('Wallet disconnected');
         toast.success('Wallet disconnected successfully');
       }
@@ -231,6 +255,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setKTBalance(null);
         setDaysAfterWhitepaper(null);
         setError(null);
+        setConnectRetries(0);
         toast.success('Wallet disconnected successfully');
       };
 

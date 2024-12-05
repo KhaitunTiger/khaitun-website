@@ -1,0 +1,43 @@
+[Unit]
+Description=Solana Validator
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=user
+LimitNOFILE=1000000
+Environment="PATH=/home/user/.local/share/solana/install/active_release/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/user/.local/share/solana/install/active_release/bin/solana-validator \
+    --identity /home/user/kt/validator-config/validator-keypair.json \
+    --entrypoint entrypoint.mainnet-beta.solana.com:8001 \
+    --entrypoint entrypoint2.mainnet-beta.solana.com:8001 \
+    --entrypoint entrypoint3.mainnet-beta.solana.com:8001 \
+    --entrypoint entrypoint4.mainnet-beta.solana.com:8001 \
+    --entrypoint entrypoint5.mainnet-beta.solana.com:8001 \
+    --known-validator 7Np41oeYqPefeNQEHSv1UDhYrehxin3NStELsSKCT4K2 \
+    --known-validator GdnSyH3YtwcxFvQrVVJMm1JhTS4QVX7MFsX56uJLUfiZ \
+    --known-validator DE1bawNcRJB9rVm3buyMVfr8mBEoyyu73NBovf2oXJsJ \
+    --known-validator CakcnaRDHka2gXyfbEd2d3xsvkJkqsLw2akB3zsN1D2S \
+    --rpc-port 8899 \
+    --dynamic-port-range 8000-8020 \
+    --no-voting \
+    --private-rpc \
+    --rpc-bind-address 0.0.0.0 \
+    --ledger /home/user/kt/validator-config/ledger \
+    --accounts /home/user/kt/validator-config/accounts \
+    --limit-ledger-size 50000000 \
+    --maximum-full-snapshots-to-retain 2 \
+    --maximum-incremental-snapshots-to-retain 4 \
+    --snapshot-compression none \
+    --enable-rpc-transaction-history \
+    --enable-cpi-and-log-storage \
+    --account-index program-id \
+    --account-index spl-token-owner \
+    --account-index spl-token-mint \
+    --log /home/user/kt/validator-config/solana-validator.log
+
+[Install]
+WantedBy=multi-user.target
