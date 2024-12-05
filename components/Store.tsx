@@ -15,19 +15,19 @@ const storeItems: StoreItem[] = [
     id: 1,
     name: "KT Limited Edition T-Shirt",
     price: 500,
-    image: "/467970237_956852316472370_5862938173089959610_n.jpg"
+    image: "/Handsome_KT.webp"
   },
   {
     id: 2,
-    name: "KT Edition Smartwatch",
+    name: "KT KID Edition ",
     price: 2000,
-    image: "/Qmc1qdSe7y82kR7rbWgPLD1poWXnQXHFxjJbRLwUJgSaF7.jpg"
+    image: "/KT_kid.webp"
   },
   {
     id: 3,
-    name: "KT Digital Wallet",
+    name: "KT Water Bottle",
     price: 1500,
-    image: "/QtrtTlC53zGn37ZQqGOM.webp"
+    image: "/water_bottle.webp"
   }
 ];
 
