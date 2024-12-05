@@ -12,6 +12,8 @@ interface WalletContextType {
   checkKTBalance: () => Promise<void>;
   error: string | null;
   isLoading: boolean;
+  selectedWallet: 'phantom' | 'solflare';
+  setSelectedWallet: React.Dispatch<React.SetStateAction<'phantom' | 'solflare'>>;
 }
 
 const WalletContext = createContext<WalletContextType>({
@@ -25,6 +27,8 @@ const WalletContext = createContext<WalletContextType>({
   checkKTBalance: async () => {},
   error: null,
   isLoading: false,
+  selectedWallet: 'phantom',
+  setSelectedWallet: () => {},
 });
 
 const KT_TOKEN_ADDRESS = 'EStPXF2Mh3NVEezeysYfhrWXnuqwmbmjqLSP9vR5pump';
@@ -42,6 +46,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [connectRetries, setConnectRetries] = useState(0);
+  const [selectedWallet, setSelectedWallet] = useState<'phantom' | 'solflare'>('phantom');
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -152,18 +157,18 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  const attemptWalletConnection = async (solana: any): Promise<any> => {
+  const attemptWalletConnection = async (wallet: any): Promise<any> => {
     try {
-      const response = await solana.connect({ onlyIfTrusted: false });
+      const response = await wallet.connect({ onlyIfTrusted: false });
       setConnectRetries(0); // Reset retries on successful connection
       return response;
     } catch (error: any) {
       if (error.message?.includes('User rejected')) {
         setConnectRetries(prev => prev + 1);
         if (connectRetries < MAX_CONNECT_RETRIES) {
-          toast.error('Connection request declined. Please approve the connection in your Phantom wallet.');
+          toast.error('Connection request declined. Please approve the connection in your wallet.');
           await sleep(RETRY_DELAY);
-          return attemptWalletConnection(solana);
+          return attemptWalletConnection(wallet);
         } else {
           throw new Error('Connection attempts exceeded. Please try again later.');
         }
@@ -178,26 +183,25 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     try {
       setError(null);
       setConnectRetries(0);
-      const { solana } = window as any;
-      
-      if (!solana) {
-        const msg = 'Phantom wallet not detected. Please install Phantom wallet from phantom.app';
+      const { solana, solflare } = window as any;
+
+      let wallet;
+      if (selectedWallet === 'solflare' && solflare && solflare.isSolflare) {
+        wallet = solflare;
+        console.log('Using Solflare wallet');
+      } else if (selectedWallet === 'phantom' && solana && solana.isPhantom) {
+        wallet = solana;
+        console.log('Using Phantom wallet');
+      } else {
+        const msg = 'No supported wallet detected or selected wallet not installed. Please install Phantom or Solflare.';
         setError(msg);
         toast.error(msg);
         return;
       }
 
-      if (!solana.isPhantom) {
-        const msg = 'Please install Phantom wallet from phantom.app to continue';
-        setError(msg);
-        toast.error(msg);
-        return;
-      }
-
-      const response = await attemptWalletConnection(solana);
+      const response = await attemptWalletConnection(wallet);
       const address = response.publicKey.toString();
       console.log('Wallet connected:', address);
-      
       setWalletAddress(address);
       setIsConnected(true);
       toast.success('Wallet connected successfully!');
@@ -216,9 +220,20 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     try {
       setError(null);
-      const { solana } = window as any;
-      if (solana) {
-        await solana.disconnect();
+      const { solana, solflare } = window as any;
+      let wallet;
+      if (selectedWallet === 'solflare' && solflare && solflare.isSolflare) {
+        wallet = solflare;
+        console.log('Disconnecting Solflare wallet');
+      } else if (selectedWallet === 'phantom' && solana && solana.isPhantom) {
+        wallet = solana;
+        console.log('Disconnecting Phantom wallet');
+      } else {
+        console.log('No supported wallet detected to disconnect.');
+        return;
+      }
+      if (wallet) {
+        await wallet.disconnect();
         setIsConnected(false);
         setWalletAddress(null);
         setKTBalance(null);
@@ -239,12 +254,21 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const { solana } = window as any;
-    if (solana) {
+    const { solana, solflare } = window as any;
+    let wallet;
+    if (selectedWallet === 'solflare' && solflare && solflare.isSolflare) {
+      wallet = solflare;
+      console.log('Using Solflare wallet');
+    } else if (selectedWallet === 'phantom' && solana && solana.isPhantom) {
+      wallet = solana;
+      console.log('Using Phantom wallet');
+    }
+
+    if (wallet) {
       const handleConnect = () => {
         console.log('Wallet connected event');
         setIsConnected(true);
-        setWalletAddress(solana.publicKey.toString());
+        setWalletAddress(wallet.publicKey.toString());
         toast.success('Wallet connected successfully!');
       };
 
@@ -259,22 +283,22 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         toast.success('Wallet disconnected successfully');
       };
 
-      solana.on('connect', handleConnect);
-      solana.on('disconnect', handleDisconnect);
-      solana.on('accountChanged', handleConnect);
+      wallet.on('connect', handleConnect);
+      wallet.on('disconnect', handleDisconnect);
+      wallet.on('accountChanged', handleConnect);
 
-      if (solana.isConnected) {
+      if (wallet.isConnected) {
         console.log('Wallet already connected');
         handleConnect();
       }
 
       return () => {
-        solana.removeListener('connect', handleConnect);
-        solana.removeListener('disconnect', handleDisconnect);
-        solana.removeListener('accountChanged', handleConnect);
+        wallet.removeListener('connect', handleConnect);
+        wallet.removeListener('disconnect', handleDisconnect);
+        wallet.removeListener('accountChanged', handleConnect);
       };
     }
-  }, []);
+  }, [selectedWallet]);
 
   return (
     <WalletContext.Provider
@@ -289,6 +313,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         checkKTBalance,
         error,
         isLoading,
+        selectedWallet,
+        setSelectedWallet,
       }}
     >
       {children}

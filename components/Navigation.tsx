@@ -2,11 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useWalletContext } from '../context/WalletContext';
 
+interface IntrinsicElements extends React.IntrinsicElements {
+  'svg': React.DetailedHTMLProps<React.SVGAttributes<SVGElement>, SVGElement>;
+}
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements extends IntrinsicElements {}
+  }
+}
+
+
 const Navigation = () => {
   const [scrolled, setScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { language, setLanguage } = useLanguage();
-  const { connectWallet, disconnect, isConnected, walletAddress, ktBalance, error, isLoading } = useWalletContext();
+  const { connectWallet, disconnect, isConnected, walletAddress, ktBalance, error, isLoading, selectedWallet, setSelectedWallet } = useWalletContext();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -27,7 +38,7 @@ const Navigation = () => {
         <div className={`nav-links flex justify-between items-center py-6 ${isMenuOpen ? 'active' : ''}`}>
           <div className="flex items-center gap-4">
             <span className="text-xl font-bold">KT</span>
-            <div className="flex items-center gap-3 mx-4">
+            <div className="flex items-center gap-6 mx-4"> {/* Increased gap */}
               {/* X (Twitter) */}
               <a href="https://x.com/KhaitunTiger" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
                 <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -57,53 +68,82 @@ const Navigation = () => {
               <option value="th">ไทย</option>
             </select>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center gap-6"> {/* Increased gap */}
             <a href="#hero" className="mx-4 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Home</a>
             <a href="#about" className="mx-4 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">About</a>
             <a href="#store" className="mx-4 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Store</a>
             <a href="#whitepaper" className="mx-4 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Whitepaper</a>
             
             {!isConnected ? (
-              <div className="flex items-center">
-                <button
-                  onClick={connectWallet}
-                  disabled={isLoading}
-                  className={`bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2
-                    ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
-                >
-                  {isLoading ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Connecting...</span>
-                    </>
-                  ) : (
-                    'Connect Wallet'
-                  )}
-                </button>
-                {error && (
-                  <div className="relative ml-4">
-                    <div 
-                      className="text-sm text-red-500 cursor-help max-w-[200px] truncate"
-                      onMouseEnter={(e) => {
-                        const target = e.currentTarget;
-                        if (target.scrollWidth > target.clientWidth) {
-                          target.title = error;
-                        }
-                      }}
-                    >
-                      {error}
-                    </div>
-                    {error.includes('retry') && (
-                      <div className="absolute top-full left-0 mt-1 text-xs text-gray-400">
-                        Retrying automatically...
-                      </div>
-                    )}
+              <>
+                <div className="flex flex-col items-center mb-2"> {/* Changed to flex-col */}
+                  <label className="text-sm font-medium mb-1" htmlFor="wallet-select">Select Wallet:</label> {/* Added label styling */}
+                  <div className="flex items-center space-x-2"> {/* Added container for radio buttons */}
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="wallet-select"
+                        value="phantom"
+                        checked={selectedWallet === 'phantom'}
+                        onChange={(e) => setSelectedWallet(e.target.value as 'phantom' | 'solflare')}
+                        className="mr-2"
+                      />
+                      Phantom
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="wallet-select"
+                        value="solflare"
+                        checked={selectedWallet === 'solflare'}
+                        onChange={(e) => setSelectedWallet(e.target.value as 'phantom' | 'solflare')}
+                        className="mr-2"
+                      />
+                      Solflare
+                    </label>
                   </div>
-                )}
-              </div>
+                </div>
+                <div className="flex items-center mt-4 ml-12"> {/* Added margin-top and margin-left */}
+                  <button
+                    onClick={connectWallet}
+                    disabled={isLoading}
+                    className={`bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2
+                      ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  >
+                    {isLoading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Connecting...</span>
+                      </>
+                    ) : (
+                      'Connect Wallet'
+                    )}
+                  </button>
+                  {error && (
+                    <div className="relative ml-4">
+                      <div 
+                        className="text-sm text-red-500 cursor-help max-w-[200px] truncate"
+                        onMouseEnter={(e) => {
+                          const target = e.currentTarget;
+                          if (target.scrollWidth > target.clientWidth) {
+                            target.title = error;
+                          }
+                        }}
+                      >
+                        {error}
+                      </div>
+                      {error.includes('retry') && (
+                        <div className="absolute top-full left-0 mt-1 text-xs text-gray-400">
+                          Retrying automatically...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
               <div className="flex items-center gap-4">
                 <div className="text-sm">
