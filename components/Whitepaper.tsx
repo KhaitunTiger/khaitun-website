@@ -8,6 +8,28 @@ const LoadingSpinner = () => (
   </svg>
 );
 
+const TokenZone: React.FC<{ title: string; requirement: string; benefits: string[]; color: string }> = ({
+  title,
+  requirement,
+  benefits,
+  color
+}) => (
+  <div className={`bg-gray-800/50 p-6 rounded-xl backdrop-blur-md border-2 ${color} hover:scale-105 transition-transform`}>
+    <h4 className="text-xl font-bold mb-2">{title}</h4>
+    <p className="text-gray-400 mb-4">{requirement}</p>
+    <ul className="space-y-2">
+      {benefits.map((benefit, index) => (
+        <li key={index} className="flex items-center gap-2">
+          <svg className="w-5 h-5 text-blue-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span className="text-gray-300">{benefit}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
 const Whitepaper: React.FC = () => {
   const { 
     isConnected, 
@@ -18,6 +40,55 @@ const Whitepaper: React.FC = () => {
     error,
     isLoading
   } = useWalletContext();
+
+  const zones = [
+    {
+      title: "Bronze Zone",
+      requirement: "Hold 10,000 - 49,999 KT",
+      benefits: [
+        "Basic merchandise access",
+        "Community chat access",
+        "Monthly newsletter"
+      ],
+      color: "border-amber-700"
+    },
+    {
+      title: "Silver Zone",
+      requirement: "Hold 50,000 - 99,999 KT",
+      benefits: [
+        "All Bronze benefits",
+        "Priority support",
+        "Quarterly community calls",
+        "Early access to basic features"
+      ],
+      color: "border-gray-400"
+    },
+    {
+      title: "Gold Zone",
+      requirement: "Hold 100,000 - 499,999 KT",
+      benefits: [
+        "All Silver benefits",
+        "Exclusive merchandise",
+        "Monthly community calls",
+        "Voting rights",
+        "Early access to all features"
+      ],
+      color: "border-yellow-500"
+    },
+    {
+      title: "Diamond Zone",
+      requirement: "Hold 500,000+ KT",
+      benefits: [
+        "All Gold benefits",
+        "Limited edition items",
+        "Direct access to team",
+        "Priority feature requests",
+        "Exclusive events access",
+        "Custom benefits"
+      ],
+      color: "border-blue-400"
+    }
+  ];
 
   return (
     <section id="whitepaper" className="py-20 bg-gradient-to-b from-black to-gray-900 text-white">
@@ -47,6 +118,20 @@ const Whitepaper: React.FC = () => {
               >
                 Download Whitepaper
               </a>
+            </div>
+          </div>
+
+          {/* Token Zones Section */}
+          <div className="mt-16">
+            <h3 className="text-3xl font-bold text-center mb-8">Token Zones</h3>
+            <p className="text-center text-gray-300 mb-12 max-w-2xl mx-auto">
+              Join our tiered membership system and unlock exclusive benefits based on your KT token holdings.
+              Each zone offers unique advantages and opportunities within our ecosystem.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {zones.map((zone, index) => (
+                <TokenZone key={index} {...zone} />
+              ))}
             </div>
           </div>
 

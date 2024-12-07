@@ -157,23 +157,43 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
+  const getWalletAddress = (wallet: any, response: any): string => {
+    if (selectedWallet === 'solflare') {
+      // Solflare wallet address handling
+      return wallet.publicKey?.toBase58() || wallet.publicKey || '';
+    } else {
+      // Phantom wallet address handling
+      return response?.publicKey?.toString() || '';
+    }
+  };
+
   const attemptWalletConnection = async (wallet: any): Promise<any> => {
     try {
       const response = await wallet.connect({ onlyIfTrusted: false });
       setConnectRetries(0); // Reset retries on successful connection
-      return response;
+      
+      // Get wallet address based on wallet type
+      const address = getWalletAddress(wallet, response);
+      if (!address) {
+        throw new Error('Failed to get wallet address');
+      }
+      
+      return { response, address };
     } catch (error: any) {
       if (error.message?.includes('User rejected')) {
-        setConnectRetries(prev => prev + 1);
-        if (connectRetries < MAX_CONNECT_RETRIES) {
-          toast.error('Connection request declined. Please approve the connection in your wallet.');
-          await sleep(RETRY_DELAY);
-          return attemptWalletConnection(wallet);
-        } else {
-          throw new Error('Connection attempts exceeded. Please try again later.');
-        }
+        // Don't retry if user explicitly rejected the connection
+        throw new Error("Connection request was declined. Please try again when you're ready to connect.");
       }
-      throw error;
+      
+      // For other types of errors, implement retry logic
+      setConnectRetries(prev => prev + 1);
+      if (connectRetries < MAX_CONNECT_RETRIES) {
+        console.log(`Connection attempt ${connectRetries + 1} failed. Retrying...`);
+        await sleep(RETRY_DELAY);
+        return attemptWalletConnection(wallet);
+      } else {
+        throw new Error('Connection attempts failed. Please check your wallet and try again later.');
+      }
     }
   };
 
@@ -193,14 +213,14 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         wallet = solana;
         console.log('Using Phantom wallet');
       } else {
-        const msg = 'No supported wallet detected or selected wallet not installed. Please install Phantom or Solflare.';
+        const walletName = selectedWallet.charAt(0).toUpperCase() + selectedWallet.slice(1);
+        const msg = `${walletName} wallet not detected. Please install ${walletName} and try again.`;
         setError(msg);
         toast.error(msg);
         return;
       }
 
-      const response = await attemptWalletConnection(wallet);
-      const address = response.publicKey.toString();
+      const { address } = await attemptWalletConnection(wallet);
       console.log('Wallet connected:', address);
       setWalletAddress(address);
       setIsConnected(true);
@@ -208,10 +228,11 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } catch (error: any) {
       const errorMsg = error.message || String(error);
       console.error('Wallet connection error:', errorMsg);
-      const msg = 'Failed to connect wallet: ' + errorMsg;
-      setError(msg);
-      toast.error(msg);
+      setError(errorMsg);
+      toast.error(errorMsg);
       setConnectRetries(0); // Reset retries on final failure
+      setIsConnected(false);
+      setWalletAddress(null);
     }
   };
 
@@ -267,9 +288,12 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (wallet) {
       const handleConnect = () => {
         console.log('Wallet connected event');
-        setIsConnected(true);
-        setWalletAddress(wallet.publicKey.toString());
-        toast.success('Wallet connected successfully!');
+        const address = getWalletAddress(wallet, null);
+        if (address) {
+          setIsConnected(true);
+          setWalletAddress(address);
+          toast.success('Wallet connected successfully!');
+        }
       };
 
       const handleDisconnect = () => {
