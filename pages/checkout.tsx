@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useCart } from '../context/CartContext';
 
+// Solana token address
+const KT_TOKEN_ADDRESS = 'EStPXF2Mh3NVEezeysYfhrWXnuqwmbmjqLSP9vR5pump';
+
 interface Address {
   fullName: string;
   streetAddress: string;
@@ -9,7 +12,13 @@ interface Address {
   state: string;
   postalCode: string;
   country: string;
+  solanaAddress?: string;
 }
+
+// Helper function to validate Solana address
+const isValidSolanaAddress = (address: string): boolean => {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+};
 
 export default function Checkout() {
   const router = useRouter();
@@ -26,16 +35,42 @@ export default function Checkout() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [solanaAddress, setSolanaAddress] = useState<string>('');
 
   useEffect(() => {
-    fetchSavedAddresses();
+    // Get connected Solana wallet address
+    const getSolanaWallet = async () => {
+      try {
+        if (typeof window !== 'undefined' && (window as any).solana) {
+          const provider = (window as any).solana;
+          
+          // Request wallet connection
+          const resp = await provider.connect();
+          const address = resp.publicKey.toString();
+          
+          if (isValidSolanaAddress(address)) {
+            setSolanaAddress(address);
+            // Fetch addresses for this wallet
+            fetchSavedAddresses(address);
+          } else {
+            setError('Invalid Solana address detected');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to connect to Solana wallet:', error);
+        setError('Please connect your Solana wallet to continue');
+      }
+    };
+
+    getSolanaWallet();
   }, []);
 
-  const fetchSavedAddresses = async () => {
+  const fetchSavedAddresses = async (address: string) => {
     try {
-      // In a real app, you'd get the userId from auth context
-      const userId = 'test-user';
-      const response = await fetch(`/api/addresses?userId=${userId}`);
+      const response = await fetch(`/api/addresses?userId=${address}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch addresses');
+      }
       const data = await response.json();
       setSavedAddresses(data);
     } catch (error) {
@@ -73,12 +108,17 @@ export default function Checkout() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!solanaAddress) {
+      setError('Please connect your Solana wallet to continue');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
       if (selectedAddress === 'new') {
-        // Save new address
         const response = await fetch('/api/addresses', {
           method: 'POST',
           headers: {
@@ -86,7 +126,9 @@ export default function Checkout() {
           },
           body: JSON.stringify({
             ...formData,
-            userId: 'test-user' // In a real app, get from auth context
+            userId: solanaAddress,
+            solanaAddress,
+            tokenAddress: KT_TOKEN_ADDRESS
           }),
         });
 
@@ -94,12 +136,6 @@ export default function Checkout() {
           throw new Error('Failed to save address');
         }
       }
-
-      // Here you would typically:
-      // 1. Process the order
-      // 2. Handle payment
-      // 3. Clear cart
-      // 4. Redirect to order confirmation
 
       router.push('/order-confirmation');
     } catch (err) {
@@ -119,10 +155,29 @@ export default function Checkout() {
     );
   }
 
+  // Show wallet connection message if wallet is not connected
+  if (!solanaAddress) {
+    return (
+      <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+          <p className="text-center text-gray-600 mb-4">Please connect your Solana wallet to continue</p>
+          <p className="text-center text-sm text-gray-500">Using token: {KT_TOKEN_ADDRESS}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-bold mb-6">Checkout</h2>
+
+        {/* Display connected wallet address */}
+        <div className="mb-4 p-3 bg-gray-50 rounded">
+          <p className="text-sm text-gray-600">Connected Solana Wallet</p>
+          <p className="text-gray-800 font-mono break-all">{solanaAddress}</p>
+          <p className="text-sm text-gray-500 mt-1">Token: {KT_TOKEN_ADDRESS}</p>
+        </div>
 
         {error && (
           <div className="bg-red-50 text-red-500 p-3 rounded mb-4">
@@ -137,7 +192,7 @@ export default function Checkout() {
                 Select Address
               </label>
               <select
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
                 value={selectedAddress}
                 onChange={handleAddressSelect}
               >
@@ -162,7 +217,7 @@ export default function Checkout() {
                 value={formData.fullName}
                 onChange={handleInputChange}
                 required
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
                 placeholder="Enter your full name"
               />
             </div>
@@ -177,7 +232,7 @@ export default function Checkout() {
                 value={formData.streetAddress}
                 onChange={handleInputChange}
                 required
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
                 placeholder="Enter your street address"
               />
             </div>
@@ -193,7 +248,7 @@ export default function Checkout() {
                   value={formData.city}
                   onChange={handleInputChange}
                   required
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
                   placeholder="Enter city"
                 />
               </div>
@@ -208,7 +263,7 @@ export default function Checkout() {
                   value={formData.state}
                   onChange={handleInputChange}
                   required
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
                   placeholder="Enter state"
                 />
               </div>
@@ -225,7 +280,7 @@ export default function Checkout() {
                   value={formData.postalCode}
                   onChange={handleInputChange}
                   required
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
                   placeholder="Enter postal code"
                 />
               </div>
@@ -240,7 +295,7 @@ export default function Checkout() {
                   value={formData.country}
                   onChange={handleInputChange}
                   required
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
                   placeholder="Enter country"
                 />
               </div>

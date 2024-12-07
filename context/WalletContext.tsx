@@ -170,41 +170,35 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const attemptWalletConnection = async (wallet: any): Promise<any> => {
     try {
       const response = await wallet.connect({ onlyIfTrusted: false });
-      setConnectRetries(0); // Reset retries on successful connection
-      
-      // Get wallet address based on wallet type
       const address = getWalletAddress(wallet, response);
+      
       if (!address) {
-        throw new Error('Failed to get wallet address');
+        setError('Failed to get wallet address');
+        toast.error('Failed to get wallet address');
+        return null;
       }
       
       return { response, address };
     } catch (error: any) {
+      console.log('Wallet connection error:', error.message);
       if (error.message?.includes('User rejected')) {
-        // Don't retry if user explicitly rejected the connection
-        throw new Error("Connection request was declined. Please try again when you're ready to connect.");
-      }
-      
-      // For other types of errors, implement retry logic
-      setConnectRetries(prev => prev + 1);
-      if (connectRetries < MAX_CONNECT_RETRIES) {
-        console.log(`Connection attempt ${connectRetries + 1} failed. Retrying...`);
-        await sleep(RETRY_DELAY);
-        return attemptWalletConnection(wallet);
+        setError("Connection request was declined. Please try again when you're ready to connect.");
+        toast.error("Connection request was declined. Please try again when you're ready to connect.");
       } else {
-        throw new Error('Connection attempts failed. Please check your wallet and try again later.');
+        setError(`Wallet connection failed: ${error.message}`);
+        toast.error(`Wallet connection failed: ${error.message}`);
       }
+      return null;
     }
   };
 
   const connectWallet = async () => {
     if (typeof window === 'undefined') return;
-
+  
     try {
       setError(null);
-      setConnectRetries(0);
       const { solana, solflare } = window as any;
-
+  
       let wallet;
       if (selectedWallet === 'solflare' && solflare && solflare.isSolflare) {
         wallet = solflare;
@@ -219,7 +213,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         toast.error(msg);
         return;
       }
-
+  
       const { address } = await attemptWalletConnection(wallet);
       console.log('Wallet connected:', address);
       setWalletAddress(address);
@@ -230,7 +224,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       console.error('Wallet connection error:', errorMsg);
       setError(errorMsg);
       toast.error(errorMsg);
-      setConnectRetries(0); // Reset retries on final failure
       setIsConnected(false);
       setWalletAddress(null);
     }
