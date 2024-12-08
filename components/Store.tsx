@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useWalletContext } from '../context/WalletContext';
@@ -11,27 +11,6 @@ interface StoreItem {
   price: number;
   image: string;
 }
-
-const storeItems: StoreItem[] = [
-  {
-    id: 1,
-    name: "KT Limited Edition T-Shirt",
-    price: 500,
-    image: "/Handsome_KT.webp"
-  },
-  {
-    id: 2,
-    name: "KT KID Edition ",
-    price: 2000,
-    image: "/KT_kid.webp"
-  },
-  {
-    id: 3,
-    name: "KT Water Bottle",
-    price: 1500,
-    image: "/water_bottle.webp"
-  }
-];
 
 const LoadingSpinner = () => (
   <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -46,6 +25,25 @@ const Store: React.FC = () => {
   const { items, addToCart, removeFromCart, updateQuantity, totalItems, totalPrice } = useCart();
   const [error, setError] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [storeItems, setStoreItems] = useState<StoreItem[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+    const fetchItems = async () => {
+      try {
+        const response = await fetch('/api/store-items');
+        if (response.ok) {
+          const data = await response.json();
+          setStoreItems(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch items:', error);
+      }
+    };
+    
+    fetchItems();
+  }, []);
 
   const handleAddToCart = (item: StoreItem) => {
     if (!isConnected) {
@@ -78,7 +76,7 @@ const Store: React.FC = () => {
         <svg className="w-6 h-6" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
           <path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
         </svg>
-        {totalItems > 0 && (
+        {isMounted && totalItems > 0 && (
           <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
             {totalItems}
           </span>

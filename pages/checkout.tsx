@@ -22,7 +22,7 @@ const isValidSolanaAddress = (address: string): boolean => {
 
 export default function Checkout() {
   const router = useRouter();
-  const { items: cart } = useCart();
+  const { items: cart, clearCart } = useCart();
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('new');
   const [formData, setFormData] = useState<Address>({
@@ -114,12 +114,18 @@ export default function Checkout() {
       return;
     }
 
+    if (!cart || cart.length === 0) {
+      setError('Your cart is empty');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
+      // Save new address if selected
       if (selectedAddress === 'new') {
-        const response = await fetch('/api/addresses', {
+        const addressResponse = await fetch('/api/addresses', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -132,11 +138,33 @@ export default function Checkout() {
           }),
         });
 
-        if (!response.ok) {
+        if (!addressResponse.ok) {
           throw new Error('Failed to save address');
         }
       }
 
+      // Submit the order
+      const orderResponse = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          address: formData,
+          items: cart,
+          solanaAddress,
+          tokenAddress: KT_TOKEN_ADDRESS
+        }),
+      });
+
+      if (!orderResponse.ok) {
+        throw new Error('Failed to submit order');
+      }
+
+      // Clear the cart after successful order
+      clearCart();
+      
+      // Redirect to order confirmation
       router.push('/order-confirmation');
     } catch (err) {
       setError('Failed to process checkout. Please try again.');
@@ -171,6 +199,23 @@ export default function Checkout() {
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-bold mb-6">Checkout</h2>
+
+        {/* Display cart summary */}
+        <div className="mb-6 p-4 bg-gray-50 rounded">
+          <h3 className="text-lg font-semibold mb-2">Order Summary</h3>
+          {cart.map((item) => (
+            <div key={item.id} className="flex justify-between items-center mb-2">
+              <span>{item.name} x {item.quantity}</span>
+              <span>${(item.price * item.quantity).toFixed(2)}</span>
+            </div>
+          ))}
+          <div className="mt-2 pt-2 border-t border-gray-200">
+            <div className="flex justify-between items-center font-semibold">
+              <span>Total</span>
+              <span>${cart.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
 
         {/* Display connected wallet address */}
         <div className="mb-4 p-3 bg-gray-50 rounded">
