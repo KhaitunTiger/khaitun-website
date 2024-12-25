@@ -115,7 +115,7 @@ const Store: React.FC = () => {
                         src={item.image}
                         alt={item.name}
                         fill
-                        className="object-cover rounded-md"
+                        className="object-contain rounded-md"
                       />
                     </div>
                     <div className="flex-1">
@@ -228,7 +228,7 @@ const Store: React.FC = () => {
                 src="/QtrtTlC53zGn37ZQqGOM.webp"
                 alt="KT Token"
                 fill
-                className="object-cover"
+                className="object-contain"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
             </div>
@@ -254,7 +254,7 @@ const Store: React.FC = () => {
                   src={item.image}
                   alt={item.name}
                   fill
-                  className="object-cover transition-transform duration-700 group-hover:scale-110"
+                  className="object-contain transition-transform duration-700 group-hover:scale-90"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               </div>

@@ -106,6 +106,7 @@ const About = () => {
                   alt={feature.title}
                   fill
                   className="object-cover hover:scale-110 transition-transform duration-500"
+                  style={{ objectPosition: "center 15%" }}
                 />
               </div>
             </div>
@@ -120,7 +121,7 @@ const About = () => {
                 src="/VDRo7y7T9w6SreQ8xslu.webp"
                 alt="KT Gallery 1"
                 fill
-                className="object-cover transition-transform duration-700 group-hover:scale-110"
+                className="object-contain transition-transform duration-700 group-hover:scale-90"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             </div>
@@ -129,7 +130,7 @@ const About = () => {
                 src="/QtrtTlC53zGn37ZQqGOM.webp"
                 alt="KT Gallery 2"
                 fill
-                className="object-cover transition-transform duration-700 group-hover:scale-110"
+                className="object-contain transition-transform duration-700 group-hover:scale-90"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             </div>
