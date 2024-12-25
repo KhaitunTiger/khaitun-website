@@ -1,20 +1,20 @@
-import '../styles/globals.css'
+import '@/styles/globals.css'
 import type { AppProps } from 'next/app'
-import { LanguageProvider } from '../context/LanguageContext'
-import { WalletProvider } from '../context/WalletContext'
-import { CartProvider } from '../context/CartContext'
+import { SessionProvider } from 'next-auth/react'
+import { CartProvider } from '@/context/CartContext'
+import { LanguageProvider } from '@/context/LanguageContext'
+import { WalletProvider } from '@/context/WalletContext'
 
-import { Toaster } from 'react-hot-toast'
-
-export default function App({ Component, pageProps }: AppProps) {
+export default function App({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   return (
-    <WalletProvider>
+    <SessionProvider session={session}>
       <LanguageProvider>
-        <CartProvider>
-          <Component {...pageProps} />
-          <Toaster position="top-right" />
-        </CartProvider>
+        <WalletProvider>
+          <CartProvider>
+            <Component {...pageProps} />
+          </CartProvider>
+        </WalletProvider>
       </LanguageProvider>
-    </WalletProvider>
+    </SessionProvider>
   )
 }
