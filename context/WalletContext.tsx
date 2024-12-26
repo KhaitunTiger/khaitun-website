@@ -1,7 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import toast from 'react-hot-toast';
+import { Connection, clusterApiUrl } from '@solana/web3.js';
+import { PythConnection, getPythProgramKeyForCluster, PythHttpClient, Price, PriceStatus } from '@pythnetwork/client';
 
 interface WalletContextType {
+  ktUsdRate: number;
+  ktSolRate: number;
+  kapiUsdRate: number;
   connectWallet: () => Promise<void>;
   disconnect: () => Promise<void>;
   isConnected: boolean;
@@ -14,9 +19,14 @@ interface WalletContextType {
   isLoading: boolean;
   selectedWallet: 'phantom' | 'solflare';
   setSelectedWallet: React.Dispatch<React.SetStateAction<'phantom' | 'solflare'>>;
+  convertUSDToKT: (usdAmount: number) => number;
+  convertKTToUSD: (ktAmount: number) => number;
 }
 
 const WalletContext = createContext<WalletContextType>({
+  ktUsdRate: 1000,
+  ktSolRate: 0,
+  kapiUsdRate: 0,
   connectWallet: async () => {},
   disconnect: async () => {},
   isConnected: false,
@@ -29,9 +39,15 @@ const WalletContext = createContext<WalletContextType>({
   isLoading: false,
   selectedWallet: 'phantom',
   setSelectedWallet: () => {},
+  convertUSDToKT: () => 0,
+  convertKTToUSD: () => 0,
 });
 
-const KT_TOKEN_ADDRESS = 'EStPXF2Mh3NVEezeysYfhrWXnuqwmbmjqLSP9vR5pump';
+const KT_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_KT_TOKEN_ADDRESS as string;
+const KAPI_TOKEN_ADDRESS = "J2Zgqgim2biihmV6rzadRbdKAuKHxHy61aQCydfWpump";
+if (!KT_TOKEN_ADDRESS) {
+  throw new Error('NEXT_PUBLIC_KT_TOKEN_ADDRESS environment variable is not set');
+}
 const WHITEPAPER_DATE = new Date('2024-01-01');
 const MIN_KT_REQUIRED = 100000;
 const RETRY_DELAY = 2000; // 2 seconds
@@ -41,12 +57,55 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [ktBalance, setKTBalance] = useState<number | null>(null);
+  const [ktUsdRate, setKtUsdRate] = useState<number>(1000); // Default rate until Pyth data is fetched
+  const [ktSolRate, setKtSolRate] = useState<number>(0); // Default rate until Pyth data is fetched
+  const [kapiUsdRate, setKapiUsdRate] = useState<number>(0); // Default rate for KAPI
+  const [pythConnection, setPythConnection] = useState<PythConnection | null>(null);
   const [daysAfterWhitepaper, setDaysAfterWhitepaper] = useState<number | null>(null);
   const [holdingPeriodDays, setHoldingPeriodDays] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [connectRetries, setConnectRetries] = useState(0);
   const [selectedWallet, setSelectedWallet] = useState<'phantom' | 'solflare'>('phantom');
+
+  const fetchRaydiumPrice = async () => {
+    try {
+      const response = await fetch('/api/raydiumPairs');
+      const data = await response.json();
+      if (data.ktUsdPrice) {
+        setKtUsdRate(data.ktUsdPrice);
+        console.log('KT/USD Rate Updated from Raydium:', data.ktUsdPrice);
+      }
+      if (data.ktSolPrice) {
+        setKtSolRate(data.ktSolPrice);
+        console.log('KT/SOL Rate Updated from Raydium:', data.ktSolPrice);
+      }
+      if (data.kapiUsdPrice) {
+        setKapiUsdRate(data.kapiUsdPrice);
+        console.log('KAPI/USD Rate Updated from Raydium:', data.kapiUsdPrice);
+      }
+    } catch (error) {
+      console.error('Error fetching Raydium price:', error);
+      toast.error('Failed to fetch Raydium price');
+    }
+  };
+
+  useEffect(() => {
+    fetchRaydiumPrice();
+    const interval = setInterval(fetchRaydiumPrice, 60000); // Fetch every 1 minute
+    return () => clearInterval(interval);
+  }, []);
+
+  // Convert USD to KT tokens using current rate
+  const convertUSDToKT = (usdAmount: number): number => {
+    return usdAmount / ktUsdRate;
+  };
+
+  // Convert KT tokens to USD using current rate
+  const convertKTToUSD = (ktAmount: number): number => {
+    return ktAmount * ktUsdRate;
+  };
+
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -320,6 +379,9 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   return (
     <WalletContext.Provider
       value={{
+        ktUsdRate,
+        ktSolRate,
+        kapiUsdRate,
         connectWallet,
         disconnect,
         isConnected,
@@ -332,6 +394,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         isLoading,
         selectedWallet,
         setSelectedWallet,
+        convertUSDToKT,
+        convertKTToUSD,
       }}
     >
       {children}

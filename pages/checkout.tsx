@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useCart } from '../context/CartContext';
 
-// Solana token address
-const KT_TOKEN_ADDRESS = 'EStPXF2Mh3NVEezeysYfhrWXnuqwmbmjqLSP9vR5pump';
+// Solana token address from environment variable
+const KT_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_KT_TOKEN_ADDRESS as string;
+if (!KT_TOKEN_ADDRESS) {
+  throw new Error('NEXT_PUBLIC_KT_TOKEN_ADDRESS environment variable is not set');
+}
 
 interface Address {
   fullName: string;

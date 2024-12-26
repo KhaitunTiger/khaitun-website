@@ -18,7 +18,7 @@ const Hero = () => {
           <h1 className="text-7xl font-bold mb-6 drop-shadow-lg">KT Token</h1>
           <p className="text-2xl mb-12 drop-shadow-md">Next Generation of Meme Coins</p>
           <a 
-            href="https://dexscreener.com/solana/ahzduwyvqhpq7swgqbvjauxnzi8dg3qy73pywghp21hv" 
+            href="https://jup.ag/swap/SOL-EStPXF2Mh3NVEezeysYfhrWXnuqwmbmjqLSP9vR5pump" 
             className="inline-block bg-blue-600 text-white px-12 py-4 rounded-full text-lg font-semibold hover:bg-blue-700 transition-all transform hover:scale-105 hover:shadow-xl"
           >
             Buy Now

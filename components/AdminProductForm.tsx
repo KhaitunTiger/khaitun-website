@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, AlertDescription } from './ui/alert';
 import Image from 'next/image';
+import { useWalletContext } from '../context/WalletContext';
 
 interface StoreItem {
   _id?: string;  // Changed from id: number to _id?: string for MongoDB
@@ -16,6 +17,7 @@ const initialItem: Omit<StoreItem, '_id'> = {
 };
 
 const AdminProductForm = () => {
+  const { convertUSDToKT } = useWalletContext();
   const [item, setItem] = useState<Omit<StoreItem, '_id'>>(initialItem);
   const [items, setItems] = useState<StoreItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -242,17 +244,24 @@ const AdminProductForm = () => {
 
             <div>
               <label className="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
-                Price (in KT tokens)
+                Price
               </label>
-              <input
-                type="number"
-                name="price"
-                value={item.price}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder="Enter price in KT"
-              />
+              <div className="space-y-2">
+                <input
+                  type="number"
+                  name="price"
+                  value={item.price}
+                  onChange={handleInputChange}
+                  min="0"
+                  className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="Enter price in USD"
+                />
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  USD: ${item.price.toFixed(2)}
+                  <br />
+                  KT: {convertUSDToKT(item.price).toLocaleString()}
+                </div>
+              </div>
             </div>
 
             <div>
@@ -321,7 +330,10 @@ const AdminProductForm = () => {
                   </div>
                   <div className="flex-1">
                     <h4 className="font-semibold text-gray-900 dark:text-white">{storeItem.name}</h4>
-                    <p className="text-blue-500">{storeItem.price.toLocaleString()} KT</p>
+                    <div>
+                      <p className="text-blue-500">${storeItem.price.toFixed(2)} USD</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{convertUSDToKT(storeItem.price).toLocaleString()} KT</p>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button

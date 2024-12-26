@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 interface StoreItem {
   id: number;
   name: string;
-  price: number;
+  price: number; // Price in USD
   image: string;
 }
 
@@ -21,7 +21,15 @@ const LoadingSpinner = () => (
 
 const Store: React.FC = () => {
   const router = useRouter();
-  const { isConnected, walletAddress, ktBalance, error: walletError, isLoading } = useWalletContext();
+  const { 
+    isConnected, 
+    walletAddress, 
+    ktBalance, 
+    error: walletError, 
+    isLoading,
+    convertUSDToKT,
+    kapiUsdRate
+  } = useWalletContext();
   const { items, addToCart, removeFromCart, updateQuantity, totalItems, totalPrice } = useCart();
   const [error, setError] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -52,8 +60,9 @@ const Store: React.FC = () => {
       return;
     }
 
-    if (ktBalance !== null && ktBalance < item.price) {
-      setError(`Insufficient balance. You need ${item.price.toLocaleString()} KT to purchase this item.`);
+    const ktAmount = convertUSDToKT(item.price);
+    if (ktBalance !== null && ktBalance < ktAmount) {
+      setError(`Insufficient balance. You need ${ktAmount.toLocaleString()} KT to purchase this item.`);
       toast.error("Insufficient balance");
       return;
     }
@@ -118,7 +127,11 @@ const Store: React.FC = () => {
                     </div>
                     <div className="flex-1">
                       <h4 className="font-semibold">{item.name}</h4>
-                      <p className="text-blue-500">{item.price.toLocaleString()} KT</p>
+                      <div>
+                        <p className="text-blue-500">${item.price.toFixed(2)} USD</p>
+                        <p className="text-gray-400">{convertUSDToKT(item.price).toLocaleString()} KT</p>
+                        <p className="text-gray-400">{(item.price / kapiUsdRate).toLocaleString()} KAPI</p>
+                      </div>
                       <div className="flex items-center gap-2 mt-2">
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity - 1)}
@@ -153,7 +166,13 @@ const Store: React.FC = () => {
             <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
               <div className="flex justify-between items-center mb-4">
                 <span className="font-semibold">Total:</span>
-                <span className="text-xl font-bold text-blue-500">{totalPrice.toLocaleString()} KT</span>
+                <div>
+                  <span className="text-xl font-bold text-blue-500">${totalPrice.toFixed(2)} USD</span>
+                  <br />
+                  <span className="text-sm text-gray-400">{convertUSDToKT(totalPrice).toLocaleString()} KT</span>
+                  <br />
+                  <span className="text-sm text-gray-400">{(totalPrice / kapiUsdRate).toLocaleString()} KAPI</span>
+                </div>
               </div>
               <button
                 className="w-full bg-blue-600 text-white py-3 rounded-full hover:bg-blue-700 transition-colors"
@@ -257,7 +276,11 @@ const Store: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               </div>
               <h3 className="text-xl font-bold mb-2">{item.name}</h3>
-              <p className="text-2xl font-bold text-blue-400 mb-4">{item.price.toLocaleString()} KT</p>
+              <div className="mb-4">
+                <p className="text-2xl font-bold text-blue-400">${item.price.toFixed(2)} USD</p>
+                <p className="text-lg text-gray-400">{convertUSDToKT(item.price).toLocaleString()} KT</p>
+                <p className="text-lg text-gray-400">{(item.price / kapiUsdRate).toLocaleString()} KAPI</p>
+              </div>
               <button
                 onClick={() => handleAddToCart(item)}
                 disabled={!isConnected || isLoading}

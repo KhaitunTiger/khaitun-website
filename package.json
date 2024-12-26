@@ -2,6 +2,7 @@
   "name": "out",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,6 +11,7 @@
   },
   "dependencies": {
     "@metamask/providers": "^18.2.0",
+    "@pythnetwork/client": "^2.22.0",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-slot": "^1.1.0",
     "@solana/spl-token": "^0.4.9",
@@ -18,9 +20,11 @@
     "@types/gsap": "^1.20.2",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/mongodb": "^4.0.6",
+    "alchemy-sdk": "^3.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cookie": "^1.0.2",
+    "dotenv": "^16.4.7",
     "ethers": "^6.13.4",
     "gsap": "^3.12.5",
     "jsonwebtoken": "^9.0.2",
@@ -30,7 +34,8 @@
     "react": "19.0.0-rc-66855b96-20241106",
     "react-dom": "19.0.0-rc-66855b96-20241106",
     "react-hot-toast": "^2.4.1",
-    "tailwind-merge": "^2.5.5"
+    "tailwind-merge": "^2.5.5",
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
     "@types/node": "^20.17.9",
