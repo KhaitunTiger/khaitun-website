@@ -6,7 +6,8 @@ import { useCart, CartItem } from '../context/CartContext';
 import toast from 'react-hot-toast';
 
 interface StoreItem {
-  id: number;
+  _id: string;  // MongoDB ObjectId
+  id?: string;  // For compatibility
   name: string;
   price: number; // Price in USD
   image: string;
@@ -24,7 +25,9 @@ const Store: React.FC = () => {
   const { 
     isConnected, 
     walletAddress, 
-    ktBalance, 
+    ktBalance,
+    usdcBalance,
+    kapiBalance, 
     error: walletError, 
     isLoading,
     convertUSDToKT,
@@ -60,14 +63,15 @@ const Store: React.FC = () => {
       return;
     }
 
+    console.log('Adding item to cart:', item); // Debug log
     const ktAmount = convertUSDToKT(item.price);
-    if (ktBalance !== null && ktBalance < ktAmount) {
-      setError(`Insufficient balance. You need ${ktAmount.toLocaleString()} KT to purchase this item.`);
-      toast.error("Insufficient balance");
-      return;
-    }
-
-    addToCart(item);
+    // Ensure we're using _id from MongoDB
+    addToCart({
+      id: item._id,  // Use MongoDB's _id
+      name: item.name,
+      price: item.price,
+      image: item.image
+    });
     toast.success(`Added ${item.name} to cart`);
   };
 
@@ -111,11 +115,11 @@ const Store: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {items.length === 0 ? (
-              <p className="text-center text-gray-500 dark:text-gray-400 mt-8">Your cart is empty</p>
-            ) : (
-              <div className="space-y-4">
-                {items.map((item) => (
+            <div className="space-y-4">
+              {items.length === 0 ? (
+                <p className="text-center text-gray-500 dark:text-gray-400">Your cart is empty</p>
+              ) : (
+                items.map((item: CartItem) => (
                   <div key={item.id} className="flex items-center gap-4 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
                     <div className="relative w-20 h-20">
                       <Image
@@ -157,9 +161,9 @@ const Store: React.FC = () => {
                       </svg>
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
 
           {items.length > 0 && (
@@ -193,19 +197,41 @@ const Store: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-16">
           <h2 className="text-5xl font-bold">KT Token Store</h2>
           {isConnected && (
-            <div className="bg-gray-800/50 px-6 py-3 rounded-full backdrop-blur-md flex items-center gap-3">
+            <div className="bg-gray-800/50 px-6 py-3 rounded-full backdrop-blur-md flex items-center gap-6">
               {isLoading && <LoadingSpinner />}
-              <p className="text-lg whitespace-nowrap">
-                {isLoading ? (
-                  <span className="text-blue-400">Syncing wallet...</span>
-                ) : ktBalance !== null ? (
-                  <>
-                    Balance: <span className="text-blue-400 font-bold">{ktBalance.toLocaleString()} KT</span>
-                  </>
-                ) : (
-                  <span className="text-gray-400">No KT tokens found</span>
-                )}
-              </p>
+              {isLoading ? (
+                <span className="text-blue-400">Syncing wallet...</span>
+              ) : (
+                <div className="flex gap-6">
+                  <p className="text-lg whitespace-nowrap">
+                    {ktBalance !== null ? (
+                      <span>
+                        KT: <span className="text-blue-400 font-bold">{ktBalance.toLocaleString()}</span>
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">No KT</span>
+                    )}
+                  </p>
+                  <p className="text-lg whitespace-nowrap">
+                    {usdcBalance !== null ? (
+                      <span>
+                        USDC: <span className="text-green-400 font-bold">{usdcBalance.toLocaleString()}</span>
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">No USDC</span>
+                    )}
+                  </p>
+                  <p className="text-lg whitespace-nowrap">
+                    {kapiBalance !== null ? (
+                      <span>
+                        KAPI: <span className="text-purple-400 font-bold">{kapiBalance.toLocaleString()}</span>
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">No KAPI</span>
+                    )}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -220,24 +246,18 @@ const Store: React.FC = () => {
                 it offers fast transactions and low fees while providing exclusive benefits to holders.
               </p>
               <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <svg className="w-6 h-6 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Exclusive access to merchandise</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <svg className="w-6 h-6 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Early access to new releases</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <svg className="w-6 h-6 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Community governance rights</span>
-                </div>
+                {[
+                  "Exclusive access to merchandise",
+                  "Early access to new releases",
+                  "Community governance rights"
+                ].map((benefit, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <svg className="w-6 h-6 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span>{benefit}</span>
+                  </div>
+                ))}
               </div>
             </div>
             <div className="relative h-64 rounded-xl overflow-hidden">
@@ -264,8 +284,8 @@ const Store: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {storeItems.map((item) => (
-            <div key={item.id} className="card bg-gray-800/50 p-6 rounded-xl backdrop-blur-md hover:bg-gray-800/70 transition-all">
+          {storeItems.map((item, index) => (
+            <div key={item._id} className="card bg-gray-800/50 p-6 rounded-xl backdrop-blur-md hover:bg-gray-800/70 transition-all" onClick={() => console.log('Clicked item:', item)}>
               <div className="relative w-full h-64 mb-6 overflow-hidden rounded-lg group">
                 <Image
                   src={item.image}

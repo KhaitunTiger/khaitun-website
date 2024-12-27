@@ -1,9 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useCart } from '../context/CartContext';
+import { useWalletContext } from '../context/WalletContext';
+import { PublicKey, Transaction } from '@solana/web3.js';
+import { createTransferInstruction, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { EnhancedConnection } from '../utils/solana-utils';
+import AddressForm from '../components/AddressForm';
+import CartDisplay from '../components/CartDisplay';
+import WalletInfo from '../components/WalletInfo';
+import TokenSelection from '../components/TokenSelection';
+import ErrorDisplay from '../components/ErrorDisplay';
 
-// Solana token address from environment variable
+declare global {
+  interface Window {
+    solana?: {
+      connect: () => Promise<{ publicKey: { toString: () => string } }>;
+      publicKey: PublicKey;
+      signTransaction: (transaction: Transaction) => Promise<Transaction>;
+      isPhantom?: boolean;
+    };
+  }
+}
+
+// Token addresses
 const KT_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_KT_TOKEN_ADDRESS as string;
+const USDC_TOKEN_ADDRESS = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
+const KAPI_TOKEN_ADDRESS = "J2Zgqgim2biihmV6rzadRbdKAuKHxHy61aQCydfWpump";
+const RECIPIENT_ADDRESS = "6nWu5k18T8Va9tx3LXQ9eoBBKGpgjhp8JVbHj9eMoSvm";
+
 if (!KT_TOKEN_ADDRESS) {
   throw new Error('NEXT_PUBLIC_KT_TOKEN_ADDRESS environment variable is not set');
 }
@@ -26,6 +50,7 @@ const isValidSolanaAddress = (address: string): boolean => {
 export default function Checkout() {
   const router = useRouter();
   const { items: cart, clearCart } = useCart();
+  const { ktBalance, usdcBalance, kapiBalance, convertUSDToKT, kapiUsdRate } = useWalletContext();
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string>('new');
   const [formData, setFormData] = useState<Address>({
@@ -39,6 +64,7 @@ export default function Checkout() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [solanaAddress, setSolanaAddress] = useState<string>('');
+  const [selectedToken, setSelectedToken] = useState<'kt' | 'usdc' | 'kapi'>('kt');
 
   useEffect(() => {
     // Get connected Solana wallet address
@@ -46,11 +72,11 @@ export default function Checkout() {
       try {
         if (typeof window !== 'undefined' && (window as any).solana) {
           const provider = (window as any).solana;
-          
+
           // Request wallet connection
           const resp = await provider.connect();
           const address = resp.publicKey.toString();
-          
+
           if (isValidSolanaAddress(address)) {
             setSolanaAddress(address);
             // Fetch addresses for this wallet
@@ -109,9 +135,13 @@ export default function Checkout() {
     }
   };
 
+  const handleTokenSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedToken(e.target.value as 'kt' | 'usdc' | 'kapi');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!solanaAddress) {
       setError('Please connect your Solana wallet to continue');
       return;
@@ -122,58 +152,155 @@ export default function Checkout() {
       return;
     }
 
+    // Check if user has sufficient balance
+    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const requiredAmount = selectedToken === 'kt'
+      ? convertUSDToKT(total)
+      : selectedToken === 'kapi'
+        ? total / kapiUsdRate
+        : total;
+
+    const currentBalance = selectedToken === 'kt'
+      ? ktBalance
+      : selectedToken === 'usdc'
+        ? usdcBalance
+        : kapiBalance;
+
+    if (!currentBalance || currentBalance < requiredAmount) {
+      setError(`Insufficient ${selectedToken.toUpperCase()} balance`);
+      return;
+    }
+
     setLoading(true);
     setError('');
 
-    try {
-      // Save new address if selected
-      if (selectedAddress === 'new') {
-        const addressResponse = await fetch('/api/addresses', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...formData,
-            userId: solanaAddress,
-            solanaAddress,
-            tokenAddress: KT_TOKEN_ADDRESS
-          }),
-        });
+    // Create token transfer transaction using EnhancedConnection
+    const connection = new EnhancedConnection(process.env.NEXT_PUBLIC_ALCHEMY_ENDPOINT!);
+    console.log(`Initiating transfer of ${requiredAmount} ${selectedToken.toUpperCase()} to ${RECIPIENT_ADDRESS}`);
+    const provider = window.solana;
+    if (!provider) {
+      throw new Error('Wallet not connected');
+    }
 
-        if (!addressResponse.ok) {
-          throw new Error('Failed to save address');
-        }
-      }
+    const recipientAddress = new PublicKey(RECIPIENT_ADDRESS);
+    const tokenMint = new PublicKey(
+      selectedToken === 'kt'
+        ? KT_TOKEN_ADDRESS
+        : selectedToken === 'usdc'
+          ? USDC_TOKEN_ADDRESS
+          : KAPI_TOKEN_ADDRESS
+    );
 
-      // Submit the order
-      const orderResponse = await fetch('/api/orders', {
+    // Get associated token accounts
+    const fromTokenAccount = await getAssociatedTokenAddress(
+      tokenMint,
+      provider.publicKey,
+      false,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+
+    const toTokenAccount = await getAssociatedTokenAddress(
+      tokenMint,
+      recipientAddress,
+      false,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+
+    // Check if recipient's token account exists
+    const recipientAccountInfo = await connection.getAccountInfo(toTokenAccount);
+
+    // Create transaction
+    const transaction = new Transaction();
+
+    // If recipient token account doesn't exist, add creation instruction
+    if (!recipientAccountInfo) {
+      console.log('Creating associated token account for recipient');
+      const createAtaInstruction = createAssociatedTokenAccountInstruction(
+        provider.publicKey, // payer
+        toTokenAccount, // ata
+        recipientAddress, // owner
+        tokenMint, // mint
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+      transaction.add(createAtaInstruction);
+    }
+
+    // Add transfer instruction
+    const transferInstruction = createTransferInstruction(
+      fromTokenAccount,
+      toTokenAccount,
+      provider.publicKey,
+      Math.floor(requiredAmount * Math.pow(10, 6)), // Convert to smallest token unit (6 decimals)
+      [],
+      TOKEN_PROGRAM_ID
+    );
+    transaction.add(transferInstruction);
+    transaction.feePayer = provider.publicKey;
+    transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+    const signed = await provider.signTransaction(transaction);
+    const signature = await connection.sendRawTransaction(signed.serialize());
+    const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+    if (!confirmation?.value) {
+      throw new Error('Transaction confirmation failed');
+    }
+    console.log('Transfer successful:', signature);
+
+    // Save new address if selected
+    if (selectedAddress === 'new') {
+      const addressResponse = await fetch('/api/addresses', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          address: formData,
-          items: cart,
+          ...formData,
+          userId: solanaAddress,
           solanaAddress,
-          tokenAddress: KT_TOKEN_ADDRESS
+          tokenAddress: selectedToken === 'kt'
+            ? KT_TOKEN_ADDRESS
+            : selectedToken === 'usdc'
+              ? USDC_TOKEN_ADDRESS
+              : KAPI_TOKEN_ADDRESS
         }),
       });
 
-      if (!orderResponse.ok) {
-        throw new Error('Failed to submit order');
+      if (!addressResponse.ok) {
+        throw new Error('Failed to save address');
       }
-
-      // Clear the cart after successful order
-      clearCart();
-      
-      // Redirect to order confirmation
-      router.push('/order-confirmation');
-    } catch (err) {
-      setError('Failed to process checkout. Please try again.');
-    } finally {
-      setLoading(false);
     }
+
+    // Submit the order
+    const orderResponse = await fetch('/api/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        address: formData,
+        items: cart,
+        solanaAddress,
+        tokenAddress: selectedToken === 'kt'
+          ? KT_TOKEN_ADDRESS
+          : selectedToken === 'usdc'
+            ? USDC_TOKEN_ADDRESS
+            : KAPI_TOKEN_ADDRESS,
+        paymentToken: selectedToken
+      }),
+    });
+
+    if (!orderResponse.ok) {
+      throw new Error('Failed to submit order');
+    }
+
+    // Clear the cart after successful order
+    clearCart();
+
+    // Redirect to order confirmation
+    router.push('/order-confirmation');
   };
 
   if (!cart || cart.length === 0) {
@@ -192,7 +319,6 @@ export default function Checkout() {
       <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
           <p className="text-center text-gray-600 mb-4">Please connect your Solana wallet to continue</p>
-          <p className="text-center text-sm text-gray-500">Using token: {KT_TOKEN_ADDRESS}</p>
         </div>
       </div>
     );
@@ -203,35 +329,13 @@ export default function Checkout() {
       <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-bold mb-6">Checkout</h2>
 
-        {/* Display cart summary */}
-        <div className="mb-6 p-4 bg-gray-50 rounded">
-          <h3 className="text-lg font-semibold mb-2">Order Summary</h3>
-          {cart.map((item) => (
-            <div key={item.id} className="flex justify-between items-center mb-2">
-              <span>{item.name} x {item.quantity}</span>
-              <span>${(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-          ))}
-          <div className="mt-2 pt-2 border-t border-gray-200">
-            <div className="flex justify-between items-center font-semibold">
-              <span>Total</span>
-              <span>${cart.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
+        <CartDisplay cart={cart} convertUSDToKT={convertUSDToKT} kapiUsdRate={kapiUsdRate} recipientAddress={RECIPIENT_ADDRESS} />
 
-        {/* Display connected wallet address */}
-        <div className="mb-4 p-3 bg-gray-50 rounded">
-          <p className="text-sm text-gray-600">Connected Solana Wallet</p>
-          <p className="text-gray-800 font-mono break-all">{solanaAddress}</p>
-          <p className="text-sm text-gray-500 mt-1">Token: {KT_TOKEN_ADDRESS}</p>
-        </div>
+        <WalletInfo solanaAddress={solanaAddress} ktBalance={ktBalance} usdcBalance={usdcBalance} kapiBalance={kapiBalance} />
 
-        {error && (
-          <div className="bg-red-50 text-red-500 p-3 rounded mb-4">
-            {error}
-          </div>
-        )}
+        <TokenSelection selectedToken={selectedToken} handleTokenSelect={handleTokenSelect} />
+
+        <ErrorDisplay error={error} />
 
         <form onSubmit={handleSubmit}>
           {savedAddresses.length > 0 && (
@@ -254,110 +358,15 @@ export default function Checkout() {
             </div>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-gray-700 mb-2">
-                Full Name
-              </label>
-              <input
-                type="text"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleInputChange}
-                required
-                className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
-                placeholder="Enter your full name"
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">
-                Street Address
-              </label>
-              <input
-                type="text"
-                name="streetAddress"
-                value={formData.streetAddress}
-                onChange={handleInputChange}
-                required
-                className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
-                placeholder="Enter your street address"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  City
-                </label>
-                <input
-                  type="text"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
-                  placeholder="Enter city"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  State
-                </label>
-                <input
-                  type="text"
-                  name="state"
-                  value={formData.state}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
-                  placeholder="Enter state"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Postal Code
-                </label>
-                <input
-                  type="text"
-                  name="postalCode"
-                  value={formData.postalCode}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
-                  placeholder="Enter postal code"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Country
-                </label>
-                <input
-                  type="text"
-                  name="country"
-                  value={formData.country}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full p-2 border rounded text-gray-900 placeholder-gray-500"
-                  placeholder="Enter country"
-                />
-              </div>
-            </div>
-          </div>
+          <AddressForm formData={formData} handleInputChange={handleInputChange} />
 
           <button
             type="submit"
             disabled={loading}
-            className={`w-full mt-6 py-2 px-4 border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
-              loading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`w-full mt-6 py-2 px-4 border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${loading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
           >
-            {loading ? 'Processing...' : 'Complete Checkout'}
+            {loading ? 'Processing Transfer...' : `Transfer ${selectedToken.toUpperCase()} to ${RECIPIENT_ADDRESS.slice(0, 4)}...${RECIPIENT_ADDRESS.slice(-4)}`}
           </button>
         </form>
       </div>

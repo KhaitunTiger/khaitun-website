@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
 export interface CartItem {
-  id: number;
+  id: string;  // Changed from number to string for MongoDB ObjectId
   name: string;
   price: number;
   image: string;
@@ -11,8 +11,8 @@ export interface CartItem {
 interface CartContextType {
   items: CartItem[];
   addToCart: (item: Omit<CartItem, 'quantity'>) => void;
-  removeFromCart: (id: number) => void;
-  updateQuantity: (id: number, quantity: number) => void;
+  removeFromCart: (id: string) => void;
+  updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   totalItems: number;
   totalPrice: number;
@@ -29,15 +29,21 @@ const CartContext = createContext<CartContextType>({
 });
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [items, setItems] = useState<CartItem[]>(() => {
-    // Initialize from localStorage if available
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Load items from localStorage after component mounts
+  useEffect(() => {
     try {
       const savedItems = localStorage.getItem('cartItems');
-      return savedItems ? JSON.parse(savedItems) : [];
-    } catch {
-      return [];
+      if (savedItems) {
+        setItems(JSON.parse(savedItems));
+      }
+    } catch (error) {
+      console.error('Failed to load cart items:', error);
     }
-  });
+    setIsInitialized(true);
+  }, []);
 
   // Use useCallback to memoize functions
   const addToCart = useCallback((item: Omit<CartItem, 'quantity'>) => {
@@ -57,7 +63,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   }, []);
 
-  const removeFromCart = useCallback((id: number) => {
+  const removeFromCart = useCallback((id: string) => {
     setItems(currentItems => {
       const newItems = currentItems.filter(item => item.id !== id);
       localStorage.setItem('cartItems', JSON.stringify(newItems));
@@ -65,7 +71,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   }, []);
 
-  const updateQuantity = useCallback((id: number, quantity: number) => {
+  const updateQuantity = useCallback((id: string, quantity: number) => {
     if (quantity < 1) return;
     setItems(currentItems => {
       const newItems = currentItems.map(item =>

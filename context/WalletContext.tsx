@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import toast from 'react-hot-toast';
-import { Connection, clusterApiUrl } from '@solana/web3.js';
+import { Connection, clusterApiUrl, PublicKey } from '@solana/web3.js';
 import { PythConnection, getPythProgramKeyForCluster, PythHttpClient, Price, PriceStatus } from '@pythnetwork/client';
 
 interface WalletContextType {
@@ -12,9 +12,13 @@ interface WalletContextType {
   isConnected: boolean;
   walletAddress: string | null;
   ktBalance: number | null;
+  usdcBalance: number | null;
+  kapiBalance: number | null;
   daysAfterWhitepaper: number | null;
   holdingPeriodDays: number | null;
   checkKTBalance: () => Promise<void>;
+  checkUSDCBalance: () => Promise<void>;
+  checkKAPIBalance: () => Promise<void>;
   error: string | null;
   isLoading: boolean;
   selectedWallet: 'phantom' | 'solflare';
@@ -32,9 +36,13 @@ const WalletContext = createContext<WalletContextType>({
   isConnected: false,
   walletAddress: null,
   ktBalance: null,
+  usdcBalance: null,
+  kapiBalance: null,
   daysAfterWhitepaper: null,
   holdingPeriodDays: null,
   checkKTBalance: async () => {},
+  checkUSDCBalance: async () => {},
+  checkKAPIBalance: async () => {},
   error: null,
   isLoading: false,
   selectedWallet: 'phantom',
@@ -44,6 +52,7 @@ const WalletContext = createContext<WalletContextType>({
 });
 
 const KT_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_KT_TOKEN_ADDRESS as string;
+const USDC_TOKEN_ADDRESS = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"; // Devnet USDC
 const KAPI_TOKEN_ADDRESS = "J2Zgqgim2biihmV6rzadRbdKAuKHxHy61aQCydfWpump";
 if (!KT_TOKEN_ADDRESS) {
   throw new Error('NEXT_PUBLIC_KT_TOKEN_ADDRESS environment variable is not set');
@@ -57,6 +66,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [ktBalance, setKTBalance] = useState<number | null>(null);
+  const [usdcBalance, setUSDCBalance] = useState<number | null>(null);
+  const [kapiBalance, setKAPIBalance] = useState<number | null>(null);
   const [ktUsdRate, setKtUsdRate] = useState<number>(1000); // Default rate until Pyth data is fetched
   const [ktSolRate, setKtSolRate] = useState<number>(0); // Default rate until Pyth data is fetched
   const [kapiUsdRate, setKapiUsdRate] = useState<number>(0); // Default rate for KAPI
@@ -112,9 +123,13 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => {
     const checkRequirements = async () => {
       if (isConnected && walletAddress) {
-        console.log('Checking balance for wallet:', walletAddress);
+        console.log('Checking balances for wallet:', walletAddress);
         try {
-          await checkKTBalance();
+          await Promise.all([
+            checkKTBalance(),
+            checkUSDCBalance(),
+            checkKAPIBalance()
+          ]);
         } catch (err) {
           console.error('Balance check error:', err);
           toast.error(String(err));
@@ -124,41 +139,43 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     checkRequirements();
   }, [isConnected, walletAddress]);
 
-  const fetchKTBalance = async (retryCount = 0): Promise<any> => {
+  const fetchTokenBalance = async (tokenAddress: string, retryCount = 0): Promise<any> => {
     try {
-      const response = await fetch(process.env.NEXT_PUBLIC_ALCHEMY_ENDPOINT!, {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getTokenAccountsByOwner',
-          params: [
-            walletAddress,
-            {
-              mint: KT_TOKEN_ADDRESS
-            },
-            {
-              encoding: 'jsonParsed'
-            }
-          ]
-        })
+      const connection = new Connection(process.env.NEXT_PUBLIC_ALCHEMY_ENDPOINT!, {
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000
       });
 
-      const data = await response.json();
-      if (data.error?.includes("couldn't complete the request")) {
-        const retryMessage = `Network is experiencing high traffic. Retry attempt ${retryCount + 1}. Please wait...`;
-        console.log(retryMessage);
-        setError(retryMessage);
-        toast.error(retryMessage);
-        await sleep(RETRY_DELAY);
-        return fetchKTBalance(retryCount + 1);
-      }
+      const accounts = await connection.getParsedTokenAccountsByOwner(
+        new PublicKey(walletAddress!),
+        { mint: new PublicKey(tokenAddress) }
+      );
 
-      return data;
+      // If we got accounts successfully, format the response
+      if (accounts.value.length > 0) {
+        return {
+          result: {
+            value: accounts.value.map(account => ({
+              account: {
+                data: {
+                  parsed: {
+                    info: {
+                      tokenAmount: account.account.data.parsed.info.tokenAmount
+                    }
+                  }
+                }
+              }
+            }))
+          }
+        };
+      }
+      
+      // If no accounts found, return empty result
+      return {
+        result: {
+          value: []
+        }
+      };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Request failed:', errorMessage);
@@ -166,7 +183,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setError(retryMessage);
       toast.error(retryMessage);
       await sleep(RETRY_DELAY);
-      return fetchKTBalance(retryCount + 1);
+      return fetchTokenBalance(tokenAddress, retryCount + 1);
     }
   };
 
@@ -181,7 +198,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setIsLoading(true);
       console.log('Fetching KT token balance from Alchemy');
 
-      const data = await fetchKTBalance();
+      const data = await fetchTokenBalance(KT_TOKEN_ADDRESS);
       console.log('Alchemy Response:', data);
 
       if (data.result?.value?.[0]?.account?.data?.parsed?.info?.tokenAmount) {
@@ -216,6 +233,72 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
+  const checkUSDCBalance = async (): Promise<void> => {
+    if (!walletAddress) {
+      console.log('No wallet address available');
+      return;
+    }
+
+    try {
+      setError(null);
+      console.log('Fetching USDC token balance from Alchemy');
+
+      const data = await fetchTokenBalance(USDC_TOKEN_ADDRESS);
+      console.log('Alchemy Response:', data);
+
+      if (data.result?.value?.[0]?.account?.data?.parsed?.info?.tokenAmount) {
+        const tokenAmount = data.result.value[0].account.data.parsed.info.tokenAmount;
+        const balance = Number(tokenAmount.uiAmountString);
+        
+        console.log('USDC Balance:', balance);
+        setUSDCBalance(balance);
+      } else {
+        console.log('No USDC token account found');
+        setUSDCBalance(0);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('Error checking USDC balance:', errorMsg);
+      setError(errorMsg);
+      toast.error(errorMsg);
+      await sleep(RETRY_DELAY);
+      return checkUSDCBalance();
+    }
+  };
+
+  const checkKAPIBalance = async (): Promise<void> => {
+    if (!walletAddress) {
+      console.log('No wallet address available');
+      return;
+    }
+
+    try {
+      setError(null);
+      console.log('Fetching KAPI token balance from Alchemy');
+
+      const data = await fetchTokenBalance(KAPI_TOKEN_ADDRESS);
+      console.log('Alchemy Response:', data);
+
+      if (data.result?.value?.[0]?.account?.data?.parsed?.info?.tokenAmount) {
+        const tokenAmount = data.result.value[0].account.data.parsed.info.tokenAmount;
+        const balance = Number(tokenAmount.uiAmountString);
+        
+        console.log('KAPI Balance:', balance);
+        setKAPIBalance(balance);
+      } else {
+        console.log('No KAPI token account found');
+        setKAPIBalance(0);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('Error checking KAPI balance:', errorMsg);
+      setError(errorMsg);
+      toast.error(errorMsg);
+      await sleep(RETRY_DELAY);
+      return checkKAPIBalance();
+    }
+  };
+
   const getWalletAddress = (wallet: any, response: any): string => {
     if (selectedWallet === 'solflare') {
       // Solflare wallet address handling
@@ -240,7 +323,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return { response, address };
     } catch (error: any) {
       console.log('Wallet connection error:', error.message);
-      if (error.message?.includes('User rejected')) {
+      if (typeof error.message === 'string' && error.message.includes('User rejected')) {
         setError("Connection request was declined. Please try again when you're ready to connect.");
         toast.error("Connection request was declined. Please try again when you're ready to connect.");
       } else {
@@ -310,6 +393,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setIsConnected(false);
         setWalletAddress(null);
         setKTBalance(null);
+        setUSDCBalance(null);
+        setKAPIBalance(null);
         setDaysAfterWhitepaper(null);
         setConnectRetries(0);
         console.log('Wallet disconnected');
@@ -353,6 +438,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setIsConnected(false);
         setWalletAddress(null);
         setKTBalance(null);
+        setUSDCBalance(null);
+        setKAPIBalance(null);
         setDaysAfterWhitepaper(null);
         setError(null);
         setConnectRetries(0);
@@ -387,9 +474,13 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         isConnected,
         walletAddress,
         ktBalance,
+        usdcBalance,
+        kapiBalance,
         daysAfterWhitepaper,
         holdingPeriodDays,
         checkKTBalance,
+        checkUSDCBalance,
+        checkKAPIBalance,
         error,
         isLoading,
         selectedWallet,
