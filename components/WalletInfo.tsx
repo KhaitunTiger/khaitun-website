@@ -18,7 +18,7 @@ const WalletInfo: React.FC<WalletInfoProps> = ({ solanaAddress, ktBalance, usdcB
           <span className="ml-2 text-blue-600 font-semibold">{ktBalance?.toLocaleString() ?? '0'}</span>
         </p>
         <p className="text-sm">
-          <span className="text-gray-600">USDC Balance:</span>
+          <span className="text-gray-600"> Balance:</span>
           <span className="ml-2 text-green-600 font-semibold">{usdcBalance?.toLocaleString() ?? '0'}</span>
         </p>
         <p className="text-sm">

@@ -215,10 +215,10 @@ const Store: React.FC = () => {
                   <p className="text-lg whitespace-nowrap">
                     {usdcBalance !== null ? (
                       <span>
-                        USDC: <span className="text-green-400 font-bold">{usdcBalance.toLocaleString()}</span>
+                        : <span className="text-green-400 font-bold">{usdcBalance.toLocaleString()}</span>
                       </span>
                     ) : (
-                      <span className="text-gray-400">No USDC</span>
+                      <span className="text-gray-400">No </span>
                     )}
                   </p>
                   <p className="text-lg whitespace-nowrap">

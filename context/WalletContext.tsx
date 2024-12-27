@@ -52,7 +52,7 @@ const WalletContext = createContext<WalletContextType>({
 });
 
 const KT_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_KT_TOKEN_ADDRESS as string;
-const USDC_TOKEN_ADDRESS = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"; // Devnet USDC
+const USDT_TOKEN_ADDRESS = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
 const KAPI_TOKEN_ADDRESS = "J2Zgqgim2biihmV6rzadRbdKAuKHxHy61aQCydfWpump";
 if (!KT_TOKEN_ADDRESS) {
   throw new Error('NEXT_PUBLIC_KT_TOKEN_ADDRESS environment variable is not set');
@@ -241,24 +241,19 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     try {
       setError(null);
-      console.log('Fetching USDC token balance from Alchemy');
-
-      const data = await fetchTokenBalance(USDC_TOKEN_ADDRESS);
-      console.log('Alchemy Response:', data);
-
+      const data = await fetchTokenBalance(USDT_TOKEN_ADDRESS);
+      
       if (data.result?.value?.[0]?.account?.data?.parsed?.info?.tokenAmount) {
         const tokenAmount = data.result.value[0].account.data.parsed.info.tokenAmount;
         const balance = Number(tokenAmount.uiAmountString);
         
-        console.log('USDC Balance:', balance);
         setUSDCBalance(balance);
       } else {
-        console.log('No USDC token account found');
         setUSDCBalance(0);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('Error checking USDC balance:', errorMsg);
+      console.error('Error checking  balance:', errorMsg);
       setError(errorMsg);
       toast.error(errorMsg);
       await sleep(RETRY_DELAY);
@@ -274,16 +269,13 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     try {
       setError(null);
-      console.log('Fetching KAPI token balance from Alchemy');
-
+      
       const data = await fetchTokenBalance(KAPI_TOKEN_ADDRESS);
-      console.log('Alchemy Response:', data);
-
+      
       if (data.result?.value?.[0]?.account?.data?.parsed?.info?.tokenAmount) {
         const tokenAmount = data.result.value[0].account.data.parsed.info.tokenAmount;
         const balance = Number(tokenAmount.uiAmountString);
         
-        console.log('KAPI Balance:', balance);
         setKAPIBalance(balance);
       } else {
         console.log('No KAPI token account found');

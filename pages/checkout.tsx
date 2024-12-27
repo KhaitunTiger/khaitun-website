@@ -24,7 +24,7 @@ declare global {
 
 // Token addresses
 const KT_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_KT_TOKEN_ADDRESS as string;
-const USDC_TOKEN_ADDRESS = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
+const USDT_TOKEN_ADDRESS = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
 const KAPI_TOKEN_ADDRESS = "J2Zgqgim2biihmV6rzadRbdKAuKHxHy61aQCydfWpump";
 const RECIPIENT_ADDRESS = "6nWu5k18T8Va9tx3LXQ9eoBBKGpgjhp8JVbHj9eMoSvm";
 
@@ -187,7 +187,7 @@ export default function Checkout() {
       selectedToken === 'kt'
         ? KT_TOKEN_ADDRESS
         : selectedToken === 'usdc'
-          ? USDC_TOKEN_ADDRESS
+          ? USDT_TOKEN_ADDRESS
           : KAPI_TOKEN_ADDRESS
     );
 
@@ -263,7 +263,7 @@ export default function Checkout() {
           tokenAddress: selectedToken === 'kt'
             ? KT_TOKEN_ADDRESS
             : selectedToken === 'usdc'
-              ? USDC_TOKEN_ADDRESS
+              ? USDT_TOKEN_ADDRESS
               : KAPI_TOKEN_ADDRESS
         }),
       });
@@ -286,7 +286,7 @@ export default function Checkout() {
         tokenAddress: selectedToken === 'kt'
           ? KT_TOKEN_ADDRESS
           : selectedToken === 'usdc'
-            ? USDC_TOKEN_ADDRESS
+            ? USDT_TOKEN_ADDRESS
             : KAPI_TOKEN_ADDRESS,
         paymentToken: selectedToken
       }),

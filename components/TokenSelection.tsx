@@ -17,7 +17,7 @@ const TokenSelection: React.FC<TokenSelectionProps> = ({ selectedToken, handleTo
         onChange={handleTokenSelect}
       >
         <option value="kt">Transfer KT Token</option>
-        <option value="usdc">Transfer USDC</option>
+        <option value="usdc">Transfer </option>
         <option value="kapi">Transfer KAPI</option>
       </select>
     </div>

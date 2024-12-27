@@ -63,7 +63,7 @@ const CartDisplay: React.FC<CartDisplayProps> = ({ cart, convertUSDToKT, kapiUsd
                   {convertUSDToKT(subtotal).toLocaleString()} KT to {recipientAddress.slice(0, 4)}...{recipientAddress.slice(-4)}
                 </span>
                 <span className="block text-sm text-gray-500">
-                  {subtotal} USDC to {recipientAddress.slice(0, 4)}...{recipientAddress.slice(-4)}
+                  {subtotal}  to {recipientAddress.slice(0, 4)}...{recipientAddress.slice(-4)}
                 </span>
                 <span className="block text-sm text-gray-500">
                   {(subtotal / kapiUsdRate).toLocaleString()} KAPI to {recipientAddress.slice(0, 4)}...{recipientAddress.slice(-4)}
